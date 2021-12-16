@@ -25,6 +25,7 @@ def pickup():
 
     # grab and lift
     lift = 8 # todo - just enough to not drag on floor
+    gripper_ctrl.update_power_level(4)
     while not(gripper_ctrl.is_closed()):
         gripper_ctrl.close() # close fully to grab
     robotic_arm_ctrl.move(0, lift, wait_for_complete = True) # lift off ground
