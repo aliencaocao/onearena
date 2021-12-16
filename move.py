@@ -1,6 +1,5 @@
 move_forward_mode = True
 car_avoid_mode = False
-pickup_mode = False
 turn_mode = False
 ir_detection_distance = 'ir_distance_1_ge_20'  # ir_distance_1_ge_DISTANCE in CM e.g. ir_distance_1_ge_10 -> 10cm
 
@@ -51,16 +50,23 @@ def move_forward():
         else:
             chassis_ctrl.move(0)  # move infinitely forward
 
+def pickupindex():
+    if 13 in vision_ctrl.get_marker_detection_info():
+        id_index = vision_ctrl.get_marker_detection_info().index(13)
+    else:
+        id_index = 1
+    human_info = vision_ctrl.get_marker_detection_info()[id_index+1:id_index+5]
+    human_x, human_w = human_info[0], human_info[2]
 
 def pickup():
-    global human_x, human_y, human_w, human_h
-
+    pickupindex()
     # face marker
     while abs(human_x - 0.5) > 0.05:
         if human_x > 0.5:
             chassis_ctrl.rotate(rm_define.clockwise)
         else if human_x < 0.5:
             chassis_ctrl.rotate(rm_define.anticlockwise)
+        pickupindex()
 
     # init claw above humanoid
     init_y = 0.2 # todo - just above humanoid
@@ -72,6 +78,7 @@ def pickup():
     minWidth = 30  # todo
     while human_w < minWidth:
         chassis_ctrl.move_degree_with_speed(0,30)
+        pickupindex()
 
     # move arm to humanoid
     grabX, grabY = 0   # todo: in case grip not very secure - extra
@@ -84,6 +91,12 @@ def pickup():
         gripper_ctrl.close() # close fully to grab
     robotic_arm_ctrl.move(0, lift, wait_for_complete = True) # lift off ground
     pickup_mode = False
+
+    
+    # reverse and face elsewhere
+    chassis_ctrl.move_with_distance(180,0.05)
+    rotationTime = 2 # todo - such that vision markers are out of view
+    chassis_ctrl.rotate_with_time(rm_define.anticlockwise, 2)
 
 
 def vision_recognized_letter_A(msg):  # drop off
@@ -98,8 +111,8 @@ def dropoff():
 
     # reverse and face elsewhere
     chassis_ctrl.move_with_distance(180,0.05)
-    rotationTime = 2 # todo - such that vision marker is out of view
-    chassis_ctrl.rotate_with_time(rm_define.clockwise,2)
+    rotationTime = 2 # todo - such that vision markers are out of view
+    chassis_ctrl.rotate_with_time(rm_define.anticlockwise,2)
 
 
 def start():
@@ -108,8 +121,6 @@ def start():
     while True:  # to merge with other modules
         if move_forward_mode:
             move_forward()
-        elif pickup_mode:
-            pickup()
         else:
             pass
 
@@ -183,13 +194,7 @@ def vision_recognized_car(msg):
 
 
 def vision_recognized_marker_number_three(msg):  # pick up
-    global pickup_mode, human_x, human_y, human_w, human_h
-    pickup_mode = True
-    if 13 in vision_ctrl.get_marker_detection_info():
-        human_info = vision_ctrl.get_marker_detection_info()[id_index+1:id_index+5]
-        human_x, human_y = human_info[0], human_info[1]
-        human_w, human_h = human_info[2], human_info[3]
-    pickup_mode = False
+    pickup()
 
 
 
