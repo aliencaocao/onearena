@@ -1,160 +1,160 @@
-move_forward_mode = True
-car_avoid_mode = False
-turn_mode = False
-ir_detection_distance = 15
+ir_detection_distance = 40
+move_forward_spd = 1
 
 
 def init():
-    vision_ctrl.enable_detection(rm_define.vision_detection_marker)
-    vision_ctrl.enable_detection(rm_define.vision_detection_car)
-    ir_distance_sensor_ctrl.enable_measure(1)
+    print('Initializing...')
     media_ctrl.exposure_value_update(rm_define.exposure_value_large)
-    robotic_arm_ctrl.moveto(0.5, 1, wait_for_complete=True)
-    vision_ctrl.set_marker_detection_distance(0.5)  # TODO: to tune with brake distance
+    robotic_arm_ctrl.moveto(200, -50, wait_for_complete=True)
+    vision_ctrl.set_marker_detection_distance(3)  # set to furthest distance to detect humanoid better
+    ir_distance_sensor_ctrl.enable_measure(1)
+    vision_ctrl.enable_detection(rm_define.vision_detection_car)
+    vision_ctrl.enable_detection(rm_define.vision_detection_marker)
 
 
 def turn_left():
+    print('Turning Left')
     chassis_ctrl.set_rotate_speed(60)
     chassis_ctrl.rotate_with_degree(rm_define.anticlockwise, 90)
 
 
 def turn_right():
+    print('Turning Right')
     chassis_ctrl.set_rotate_speed(60)
     chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
 
 
-def move_forward():
-    global move_forward_mode
-    move_forward_spd = 0.7  # TODO: to tune
+def move_forward(distance=''):
     chassis_ctrl.set_trans_speed(move_forward_spd)
-    while move_forward_mode:  # will only exit loop here after move_forward_mode flag is set to False in other functions
-        if ir_distance_sensor_ctrl.get_distance_info(1) <= ir_detection_distance:  # stop moving when detected stuff and resume moving when there is none
-            print('detected obj at distance:', ir_distance_sensor_ctrl.get_distance_info(1))
+    if ir_distance_sensor_ctrl.get_distance_info(1) <= ir_detection_distance:  # stop moving when detected stuff and resume moving when there is none
+        if distance and not vision_ctrl.check_condition(rm_define.cond_recognized_car):  # if distance param is passed and not car blocking, means it is the marker block, then can continue
+            print('Detected object but is not a car and current travelling to a marker. Continue moving forward by distance:', distance)
+            chassis_ctrl.move_with_distance(0, ir_distance_sensor_ctrl.get_distance_info(1) / 100)
+        else:
+            print('Stopping as detected obj at distance:', ir_distance_sensor_ctrl.get_distance_info(1))
             # robot detected callback should be triggered here if it is a robot
             chassis_ctrl.stop()
+    else:
+        if distance:
+            print('Moving forward by distance:', distance)
+            chassis_ctrl.move_with_distance(0, distance)
         else:
+            print('Moving forward')
             chassis_ctrl.move(0)  # move infinitely forward
 
 
-def pickupindex():
-    global human_x, human_w
-    if 13 in vision_ctrl.get_marker_detection_info():
-        id_index = vision_ctrl.get_marker_detection_info().index(13)
-    else:
-        id_index = 1
-    human_info = vision_ctrl.get_marker_detection_info()[id_index + 1:id_index + 5]
-    human_x, human_y, human_w = human_info[0], human_info[1], human_info[2],
+def predict_dist():
+    s1 = vision_ctrl.get_marker_detection_info()  # ir info in list s1
+    w1, h1 = s1[3], s1[4]  # y coords, width
+    m = 10  # cm TODO
+    chassis_ctrl.move_with_distance(0, m / 100)  # moves 10cm
+    s2 = vision_ctrl.get_marker_detection_info()
+    w2, h2 = s2[3], s2[4]  # y coords2, width2
+    new_dist_from_obj = (((w2 / (w2 - w1)) - m) + ((h2 / (h2 - h1)) - m)) / 2  # avg of height and width changes
+    return new_dist_from_obj  # cm
 
 
 def pickup():
-    global pickup_mode, rotationTime, move_forward_mode
-    pickupindex()
-    print('picking up')
-    chassis_ctrl.move(0)
-    while ir_distance_sensor_ctrl.get_distance_info(1) > 10:
-        pass
-    chassis_ctrl.stop()
-    # init claw above humanoid
-    init_y = 0.2  # todo - just above humanoid
-    robotic_arm_ctrl.moveto(0.5, init_y, wait_for_complete=True)
-    while not (gripper_ctrl.is_open()):
-        gripper_ctrl.open()  # open claw fully
+    # begin
+    print('pickup started')
+    chassis_ctrl.stop()  # stop movement for measurement
+    print('claw opening')
+    # open claw fully
+    while not gripper_ctrl.is_open():
+        gripper_ctrl.open()
+    # position claw at upper body of humanoid (8.97cm from ground)
+    print("readying claw for pickup")
+    robotic_arm_ctrl.moveto(200, -15, wait_for_complete=True) # TODO
 
-    # move arm to humanoid
-    grabX, grabY = 0, 0  # todo: in case grip not very secure - extra
-    robotic_arm_ctrl.moveto(human_x + grabX, human_y + grabY, wait_for_complete=True)  # shift claw to target coordinates
+    # approach humanoid until it is minimum distance away
+    print("approaching humanoid")
+    # dist below are in cm
+    minDist = 12  # TODO
+    ir_dist = ir_distance_sensor_ctrl.get_distance_info(1)
+    if ir_dist > 12:  # this is diff from minDist, this is 10cm + 2cm buffer for measure distance. If there are sth in front within 10cm, we cant crash onto it.
+        calcDist = predict_dist()
+    else:
+        calcDist = ir_dist
+    using_ir = True
+    if abs(ir_dist - calcDist) >= 10:  # TODO
+        dist = calcDist
+        using_ir = False
+    else:
+        dist = ir_dist
+    if using_ir:
+        chassis_ctrl.set_trans_speed(0.25)  # need go super slow TODO
+        while dist > minDist:
+            chassis_ctrl.move(0)
+            dist = ir_distance_sensor_ctrl.get_distance_info(1)
+    else:
+        chassis_ctrl.set_trans_speed(move_forward_spd*0.7)  # no need go super slow TODO
+        chassis_ctrl.move_with_distance(0, dist / 10)
 
-    # grab and lift
+    # grab
+    print('securing humanoid')
     gripper_ctrl.update_power_level(4)
-    while not (gripper_ctrl.is_closed()):
+    while not gripper_ctrl.is_closed():
         gripper_ctrl.close()  # close fully to grab
-    robotic_arm_ctrl.move(0.5, 0, wait_for_complete=True)  # lift off ground
-    pickup_mode = False
-    move_forward_mode = True
+
+    # lift
+    print("lifting off ground")
+    robotic_arm_ctrl.move(0, 10, wait_for_complete=True)  # lift 1cm off ground
+
+    # end
+    print('pickup completed')
 
 
 def dropoff():
-    gripper_ctrl.update_power_level(1)  # humanoid slides down within claw onto floor
-    robotic_arm_ctrl.moveto(0.5, 1, wait_for_complete=False)  # move to base of humanoid
+    # begin
+    print("dropoff started")
+
+    # turning to face drop off
+    print("turning to dropoff point")
     turn_right()
-    while not (gripper_ctrl.is_open()()):
-        gripper_ctrl.open()  # releases humanoid
-    # reverse and face elsewhere
-    chassis_ctrl.move_with_distance(180, 0.1)
-    turn_left()
-    chassis_ctrl.move_with_distance(90, 0.09)  # compensate the 10cm moved above but leave a bit of room
+
+    # humanoid slides down within claw onto floor
+    print("reducing grip strength")
+    gripper_ctrl.update_power_level(1)
+
+    # open claw
+    print("dropping off humanoid")
+    while not (gripper_ctrl.is_open()):
+        gripper_ctrl.open()
+
+    # reverse and face away from dropoff vision marker
+    print("reversing")  # to prevent topple
+    chassis_ctrl.set_trans_speed(0.05)
+    chassis_ctrl.move_with_distance(0, 0.15)
+    chassis_ctrl.set_trans_speed(move_forward_spd)
+    print("leaving dropoff point")
+    turn_left()  # face back the road
+    robotic_arm_ctrl.moveto(200, -50, wait_for_complete=True)
+    print("dropoff completed")
 
 
 def start():
-    global move_forward_mode
     init()
-    while True:  # to merge with other modules
-        if move_forward_mode:
-            move_forward()
-        else:
-            pass
-
-
-# def chassis_impact_detection(msg):  # todo, rotate in a circle and store IR info to decide where to move, check which side is collide
-#     chassis_ctrl.stop()
-#     # chassis_ctrl.move_with_distance(180, 0.2)
-
-
-def vision_recognized_marker_number_seven(msg):
-    print(ir_distance_sensor_ctrl.get_distance_info(1))
-    if ir_distance_sensor_ctrl.get_distance_info(1) < 50:  # cases where there is U turn and may not be 1 meter till end of road (check for less than 115cm)
-        chassis_ctrl.move_with_distance(0, ir_distance_sensor_ctrl.get_distance_info(1)/100)  # move forward until 10cm to obstetrical, TODO: to tune
-        turn_right()
-    else:
-        chassis_ctrl.move_with_distance(0, 0.5)  # detected at 50cm
-        turn_right()
-
-
-def vision_recognized_marker_number_six(msg):
-    print(ir_distance_sensor_ctrl.get_distance_info(1))
-    if ir_distance_sensor_ctrl.get_distance_info(1) < 50:  # cases where there is U turn and may not be 1 meter till end of road (check for less than 115cm)
-        chassis_ctrl.move_with_distance(0, ir_distance_sensor_ctrl.get_distance_info(1)/100)  # move forward until 10cm to obstetrical, TODO: to tune
-        turn_left()
-    else:
-        chassis_ctrl.move_with_distance(0, 0.5)  # detected at 50cm
-        turn_left()
-
-
-def vision_recognized_car(msg):
-    if ir_distance_sensor_ctrl.get_distance_info(1) <= 10:  # its very close to the robot, switch to side lane and overtake (if its face to face, it should not be very close)
-        chassis_ctrl.move_with_distance(270, 0.26)  # robot width 24cm, move to left side 26cm to switch lane
-        chassis_ctrl.set_trans_speed(3.5)  # overtake at max speed
-        chassis_ctrl.move_with_distance(0, 0.6)  # robot length 34cm + 20cm moved back + 6cm buffer
-        chassis_ctrl.set_trans_speed(3.5)  # TODO: to tune
-        chassis_ctrl.move_with_distance(90, 0.26)  # robot width 24cm, move to right side 26cm to switch back lane
-    else:
-        car_info = vision_ctrl.get_car_detection_info()
-        if car_info[0]:
-            car_w, car_h = car_info[3], car_info[4]
+    while True:
+        if vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_seven):
             chassis_ctrl.stop()
-            wait = 0  # seconds
-            while wait <= 5:
-                time.sleep(1)  # stops moving for a second to detect
-                new_info = vision_ctrl.get_car_detection_info()
-                if new_info[0]:  # there is still car detected
-                    if (new_info[3], new_info[4]) == (car_w, car_h):
-                        car_w, car_h = new_info[3], new_info[4]
-                        wait += 1
-                    else:
-                        wait = 0  # reset back to 5 seconds timeout
-                else:  # if car gone then break out this loop
-                    break
-
-
-def vision_recognized_marker_number_three(msg):  # pick up
-    pickup()
-
-
-def vision_recognized_letter_A(msg):  # drop off
-    dropoff()
+            print('Distance to marker:', ir_distance_sensor_ctrl.get_distance_info(1))
+            chassis_ctrl.move_with_distance(0, (ir_distance_sensor_ctrl.get_distance_info(1) - 2) / 100)
+            turn_right()
+        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_six):
+            chassis_ctrl.stop()
+            print('Distance to marker:', ir_distance_sensor_ctrl.get_distance_info(1))
+            chassis_ctrl.move_with_distance(0, (ir_distance_sensor_ctrl.get_distance_info(1) - 2) / 100)
+            turn_left()
+        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_three):
+            pickup()
+        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_letter_A):
+            dropoff()
+        else:
+            move_forward()
 
 
 def vision_recognized_marker_number_five(msg):  # terminate
+    print('terminating')
     led_ctrl.set_top_led(rm_define.armor_top_all, 255, 0, 0, rm_define.effect_always_on)
     led_ctrl.set_bottom_led(rm_define.armor_bottom_all, 255, 0, 0, rm_define.effect_always_on)
     rmexit()
