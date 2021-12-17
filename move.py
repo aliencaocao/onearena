@@ -51,7 +51,7 @@ def predict_dist():
     chassis_ctrl.move_with_distance(0, m / 100)  # moves 10cm
     s2 = vision_ctrl.get_marker_detection_info()
     w2, h2 = s2[3], s2[4]  # y coords2, width2
-    new_dist_from_obj = (((w2 / (w2 - w1)) - m) + ((h2 / (h2 - h1)) - m)) / 2  # avg of height and width changes
+    new_dist_from_obj = (((m * w2 / (w2 - w1)) - m) + ((m * h2 / (h2 - h1)) - m)) / 2  # avg of height and width changes
     return new_dist_from_obj  # cm
 
 
