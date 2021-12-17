@@ -6,7 +6,7 @@ def init():
     print('Initializing...')
     media_ctrl.exposure_value_update(rm_define.exposure_value_large)
     robotic_arm_ctrl.moveto(200, -50, wait_for_complete=True)
-    vision_ctrl.set_marker_detection_distance(3)  # set to furthest distance to detect humanoid better
+    vision_ctrl.set_marker_detection_distance(0.5)  # set to furthest distance to detect humanoid better
     ir_distance_sensor_ctrl.enable_measure(1)
     vision_ctrl.enable_detection(rm_define.vision_detection_car)
     vision_ctrl.enable_detection(rm_define.vision_detection_marker)
@@ -140,6 +140,8 @@ def dropoff():
 def start():
     init()
     while True:
+        vision_ctrl.enable_detection(rm_define.vision_detection_car)
+        vision_ctrl.enable_detection(rm_define.vision_detection_marker)
         print(vision_ctrl.get_marker_detection_info())
         if vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_two):
             chassis_ctrl.stop()
