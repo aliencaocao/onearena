@@ -1,6 +1,6 @@
-ir_detection_distance = 40
-move_forward_spd = 1
-
+led_ctrl.set_bottom_led(rm_define.armor_bottom_all, 255, 0, 0, rm_define.effect_always_on)
+ir_detection_distance = 50
+move_forward_spd = 0.7
 
 def init():
     print('Initializing...')
@@ -140,6 +140,7 @@ def dropoff():
 def start():
     init()
     while True:
+        print(vision_ctrl.get_marker_detection_info())
         if vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_two):
             chassis_ctrl.stop()
             print('Distance to marker:', ir_distance_sensor_ctrl.get_distance_info(1))
