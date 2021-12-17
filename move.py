@@ -24,7 +24,7 @@ def turn_right():
     chassis_ctrl.rotate_with_degree(rm_define.clockwise, 90)
 
 
-def move_forward(distance=''):
+def move_forward(distance=''):  # distance in m
     chassis_ctrl.set_trans_speed(move_forward_spd)
     if ir_distance_sensor_ctrl.get_distance_info(1) <= ir_detection_distance:  # stop moving when detected stuff and resume moving when there is none
         if distance and not vision_ctrl.check_condition(rm_define.cond_recognized_car):  # if distance param is passed and not car blocking, means it is the marker block, then can continue
@@ -44,6 +44,7 @@ def move_forward(distance=''):
 
 
 def predict_dist():
+    print('predicting distance')
     s1 = vision_ctrl.get_marker_detection_info()  # ir info in list s1
     w1, h1 = s1[3], s1[4]  # y coords, width
     m = 10  # cm TODO
@@ -124,37 +125,38 @@ def dropoff():
     # reverse and face away from dropoff vision marker
     print("reversing")  # to prevent topple
     chassis_ctrl.set_trans_speed(0.05)
-    chassis_ctrl.move_with_distance(0, 0.15)
-    chassis_ctrl.set_trans_speed(move_forward_spd)
+    chassis_ctrl.move_with_distance(180, 0.15)
     print("leaving dropoff point")
     turn_left()  # face back the road
+    chassis_ctrl.move_with_distance(90, 0.14)
     robotic_arm_ctrl.moveto(200, -50, wait_for_complete=True)
+    chassis_ctrl.set_trans_speed(move_forward_spd)
     print("dropoff completed")
 
 
 def start():
     init()
     while True:
-        if vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_seven):
+        if vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_two):
             chassis_ctrl.stop()
             print('Distance to marker:', ir_distance_sensor_ctrl.get_distance_info(1))
             chassis_ctrl.move_with_distance(0, (ir_distance_sensor_ctrl.get_distance_info(1) - 2) / 100)
             turn_right()
-        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_six):
+        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_trans_red_heart):
             chassis_ctrl.stop()
             print('Distance to marker:', ir_distance_sensor_ctrl.get_distance_info(1))
             chassis_ctrl.move_with_distance(0, (ir_distance_sensor_ctrl.get_distance_info(1) - 2) / 100)
             turn_left()
         elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_three):
             pickup()
-        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_letter_A):
+        elif vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_four):
             dropoff()
         else:
             move_forward()
 
 
-def vision_recognized_marker_number_five(msg):  # terminate
-    print('terminating')
-    led_ctrl.set_top_led(rm_define.armor_top_all, 255, 0, 0, rm_define.effect_always_on)
-    led_ctrl.set_bottom_led(rm_define.armor_bottom_all, 255, 0, 0, rm_define.effect_always_on)
-    rmexit()
+# def vision_recognized_marker_number_five(msg):  # terminate
+#     print('terminating')
+#     led_ctrl.set_top_led(rm_define.armor_top_all, 255, 0, 0, rm_define.effect_always_on)
+#     led_ctrl.set_bottom_led(rm_define.armor_bottom_all, 255, 0, 0, rm_define.effect_always_on)
+#     rmexit()
