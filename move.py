@@ -28,7 +28,7 @@ def move_forward(distance=''):  # distance in m
     chassis_ctrl.set_trans_speed(move_forward_spd)
     if ir_distance_sensor_ctrl.get_distance_info(1) <= ir_detection_distance:  # stop moving when detected stuff and resume moving when there is none
         if distance and not vision_ctrl.check_condition(rm_define.cond_recognized_car):  # if distance param is passed and not car blocking, means it is the marker block, then can continue
-            print('Detected object but is not a car and current travelling to a marker. Continue moving forward by distance:', distance)
+            print('Detected object but is not a car and current travelling to a marker. Continue moving forward by distance (m):', ir_distance_sensor_ctrl.get_distance_info(1) / 100)
             chassis_ctrl.move_with_distance(0, ir_distance_sensor_ctrl.get_distance_info(1) / 100)
         else:
             print('Stopping as detected obj at distance:', ir_distance_sensor_ctrl.get_distance_info(1))
@@ -36,7 +36,7 @@ def move_forward(distance=''):  # distance in m
             chassis_ctrl.stop()
     else:
         if distance:
-            print('Moving forward by distance:', distance)
+            print('Moving forward by distance (m):', distance)
             chassis_ctrl.move_with_distance(0, distance)
         else:
             print('Moving forward')
@@ -52,6 +52,7 @@ def predict_dist():
     s2 = vision_ctrl.get_marker_detection_info()
     w2, h2 = s2[3], s2[4]  # y coords2, width2
     new_dist_from_obj = (((m * w2 / (w2 - w1)) - m) + ((m * h2 / (h2 - h1)) - m)) / 2  # avg of height and width changes
+    print('predicted distance (cm):', new_dist_from_obj)
     return new_dist_from_obj  # cm
 
 
@@ -68,7 +69,6 @@ def pickup():
     robotic_arm_ctrl.moveto(200, -15, wait_for_complete=True) # TODO
 
     # approach humanoid until it is minimum distance away
-    print("approaching humanoid")
     # dist below are in cm
     minDist = 12  # TODO
     ir_dist = ir_distance_sensor_ctrl.get_distance_info(1)
@@ -78,10 +78,13 @@ def pickup():
         calcDist = ir_dist
     using_ir = True
     if abs(ir_dist - calcDist) >= 10:  # TODO
+        print('Using calculated distance')
         dist = calcDist
         using_ir = False
     else:
+        print('Trusting IR sensor')
         dist = ir_dist
+    print("Approaching humanoid")
     if using_ir:
         chassis_ctrl.set_trans_speed(0.25)  # need go super slow TODO
         while dist > minDist:
