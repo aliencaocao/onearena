@@ -2,13 +2,14 @@ led_ctrl.set_bottom_led(rm_define.armor_bottom_all, 255, 0, 0, rm_define.effect_
 ir_detection_distance = 50
 move_forward_spd = 0.7
 
+
 def init():
     print('Initializing...')
     media_ctrl.exposure_value_update(rm_define.exposure_value_large)
     robotic_arm_ctrl.moveto(200, -50, wait_for_complete=True)
     vision_ctrl.set_marker_detection_distance(0.5)  # set to furthest distance to detect humanoid better
     ir_distance_sensor_ctrl.enable_measure(1)
-    vision_ctrl.enable_detection(rm_define.vision_detection_car)
+    # vision_ctrl.enable_detection(rm_define.vision_detection_car)  # cannot use tger with vision marker else both wont work
     vision_ctrl.enable_detection(rm_define.vision_detection_marker)
 
 
@@ -66,7 +67,7 @@ def pickup():
         gripper_ctrl.open()
     # position claw at upper body of humanoid (8.97cm from ground)
     print("readying claw for pickup")
-    robotic_arm_ctrl.moveto(200, -15, wait_for_complete=True) # TODO
+    robotic_arm_ctrl.moveto(200, -15, wait_for_complete=True)  # TODO
 
     # approach humanoid until it is minimum distance away
     # dist below are in cm
@@ -91,7 +92,7 @@ def pickup():
             chassis_ctrl.move(0)
             dist = ir_distance_sensor_ctrl.get_distance_info(1)
     else:
-        chassis_ctrl.set_trans_speed(move_forward_spd*0.7)  # no need go super slow TODO
+        chassis_ctrl.set_trans_speed(move_forward_spd * 0.7)  # no need go super slow TODO
         chassis_ctrl.move_with_distance(0, dist / 10)
 
     # grab
@@ -140,9 +141,6 @@ def dropoff():
 def start():
     init()
     while True:
-        vision_ctrl.enable_detection(rm_define.vision_detection_car)
-        vision_ctrl.enable_detection(rm_define.vision_detection_marker)
-        print(vision_ctrl.get_marker_detection_info())
         if vision_ctrl.check_condition(rm_define.cond_recognized_marker_number_two):
             chassis_ctrl.stop()
             print('Distance to marker:', ir_distance_sensor_ctrl.get_distance_info(1))
@@ -159,10 +157,3 @@ def start():
             dropoff()
         else:
             move_forward()
-
-
-# def vision_recognized_marker_number_five(msg):  # terminate
-#     print('terminating')
-#     led_ctrl.set_top_led(rm_define.armor_top_all, 255, 0, 0, rm_define.effect_always_on)
-#     led_ctrl.set_bottom_led(rm_define.armor_bottom_all, 255, 0, 0, rm_define.effect_always_on)
-#     rmexit()
